@@ -7,7 +7,6 @@ __maintainer__ = "Birkbeck Centre for Technology and Publishing"
 from datetime import timedelta
 from importlib import import_module
 import json
-import logging
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -23,13 +22,15 @@ from django.http import HttpResponse
 from django.contrib.sessions.models import Session
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.conf import settings as django_settings
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.contrib.contenttypes.models import ContentType
 import pytz
 
 from core import models, forms, logic, workflow
-from security.decorators import editor_user_required, article_author_required
+from security.decorators import editor_user_required, article_author_required, has_journal
 from submission import models as submission_models
 from review import models as review_models
 from copyediting import models as copyedit_models
@@ -38,8 +39,11 @@ from journal import models as journal_models
 from proofing import logic as proofing_logic
 from proofing import models as proofing_models
 from utils import models as util_models, setting_handler, orcid
+from utils.logger import get_logger
 
 from django.db.models import Q
+
+logger = get_logger(__name__)
 
 
 def user_login(request):
@@ -62,7 +66,7 @@ def user_login(request):
                 request,
                 'You have been banned from logging in due to failed attempts.'
         )
-        logging.warning("[LOGIN_DENIED][FAILURES:%d]" % bad_logins)
+        logger.warning("[LOGIN_DENIED][FAILURES:%d]" % bad_logins)
         return redirect(reverse('website_index'))
 
     form = forms.LoginForm(bad_logins=bad_logins)
@@ -312,18 +316,29 @@ def orcid_registration(request, token):
 
 def activate_account(request, token):
     """
-    Activates a user account if an Account object with the matching token is found and is not already active.
+    Activates a user account if an Account object with the
+    matching token is found and is not already active.
     :param request: HttpRequest object
     :param token: string, Account.confirmation_token
     :return: HttpResponse object
     """
     try:
         account = models.Account.objects.get(confirmation_code=token, is_active=False)
+    except models.Account.DoesNotExist:
+        account = None
+
+    if account and request.POST:
         account.is_active = True
         account.confirmation_code = None
         account.save()
-    except models.Account.DoesNotExist:
-        account = None
+
+        messages.add_message(
+            request,
+            messages.SUCCESS,
+            'Account activated',
+        )
+
+        return redirect(reverse('core_login'))
 
     template = 'core/accounts/activate_account.html'
     context = {
@@ -349,10 +364,21 @@ def edit_profile(request):
             email_address = request.POST.get('email_address')
             try:
                 validate_email(email_address)
-                logic.handle_email_change(request, email_address)
-                return redirect(reverse('website_index'))
+                try:
+                    logic.handle_email_change(request, email_address)
+                    return redirect(reverse('website_index'))
+                except IntegrityError:
+                    messages.add_message(
+                        request,
+                        messages.WARNING,
+                        'An account with that email address already exists.',
+                    )
             except ValidationError:
-                messages.add_message(request, messages.WARNING, 'Email address is not valid.')
+                messages.add_message(
+                    request,
+                    messages.WARNING,
+                    'Email address is not valid.',
+                )
 
         elif 'change_password' in request.POST:
             old_password = request.POST.get('current_password')
@@ -415,6 +441,7 @@ def public_profile(request, uuid):
     return render(request, template, context)
 
 
+@has_journal
 @login_required
 def dashboard(request):
     """
@@ -423,8 +450,8 @@ def dashboard(request):
     :return: HttpResponse object
     """
     template = 'core/dashboard.html'
-    new_proofing, active_proofing, completed_proofing, new_proofing_typesetting, active_proofing_typesetting, \
-        completed_proofing_typesetting = proofing_logic.get_tasks(request)
+    new_proofing, active_proofing, completed_proofing = proofing_logic.get_tasks(request)
+    new_proofing_typesetting, active_proofing_typesetting, completed_proofing_typesetting = proofing_logic.get_typesetting_tasks(request)
     section_editor_articles = review_models.EditorAssignment.objects.filter(editor=request.user,
                                                                             editor_type='section-editor',
                                                                             article__journal=request.journal)
@@ -477,7 +504,7 @@ def dashboard(request):
         'assigned_articles_for_user_review_completed_count': review_models.ReviewAssignment.objects.filter(
             Q(is_complete=True) &
             Q(reviewer=request.user) &
-            Q(date_declined__isnull=False), article__journal=request.journal).count(),
+            Q(date_declined__isnull=True), article__journal=request.journal).count(),
 
         'copyeditor_requests': copyedit_models.CopyeditAssignment.objects.filter(
             Q(copyeditor=request.user) &
@@ -523,6 +550,7 @@ def dashboard(request):
     return render(request, template, context)
 
 
+@has_journal
 @editor_user_required
 def active_submissions(request):
     template = 'core/active_submissions.html'
@@ -538,6 +566,7 @@ def active_submissions(request):
     return render(request, template, context)
 
 
+@has_journal
 @editor_user_required
 def active_submission_filter(request):
     articles = logic.build_submission_list(request)
@@ -552,6 +581,7 @@ def active_submission_filter(request):
     return HttpResponse(json.dumps({'status': 200, 'html': html}))
 
 
+@has_journal
 @article_author_required
 def dashboard_article(request, article_id):
     """
@@ -630,6 +660,7 @@ def default_settings_index(request):
 
     return settings_index(request)
 
+
 @editor_user_required
 def edit_setting(request, setting_group, setting_name):
     """
@@ -666,11 +697,8 @@ def edit_setting(request, setting_group, setting_name):
         if request.FILES:
             value = logic.handle_file(request, setting_value, request.FILES['value'])
 
-        setting_value = setting_handler.get_setting(
-            setting_group, setting_name, request.journal, create=True)
-        setting_value.value = value
-        setting_value.save()
-
+        setting_value = setting_handler.save_setting(
+            setting_group, setting_name, request.journal, value)
         cache.clear()
 
         return redirect(reverse('core_settings_index'))
@@ -1049,14 +1077,26 @@ def user_history(request, user_id):
     """
 
     user = get_object_or_404(models.Account, pk=user_id)
+    content_type = ContentType.objects.get_for_model(user)
+    log_entries = util_models.LogEntry.objects.filter(
+        content_type=content_type,
+        object_id=user.pk,
+        is_email=True,
+    )
 
     template = 'core/manager/users/history.html'
     context = {
         'user': user,
-        'review_assignments': review_models.ReviewAssignment.objects.filter(reviewer=user,
-                                                                            article__journal=request.journal),
-        'copyedit_assignments': copyedit_models.CopyeditAssignment.objects.filter(copyeditor=user,
-                                                                                  article__journal=request.journal)
+        'review_assignments': review_models.ReviewAssignment.objects.filter(
+            reviewer=user,
+            article__journal=request.journal,
+        ),
+        'copyedit_assignments':
+            copyedit_models.CopyeditAssignment.objects.filter(
+                copyeditor=user,
+                article__journal=request.journal,
+            ),
+        'log_entries': log_entries,
     }
 
     return render(request, template, context)
@@ -1419,20 +1459,29 @@ def plugin_list(request):
     plugin_list = list()
 
     if request.journal:
-        plugins = util_models.Plugin.objects.filter(enabled=True)
+        plugins = util_models.Plugin.objects.filter(
+            enabled=True,
+            homepage_element=False,
+        )
     else:
-        plugins = util_models.Plugin.objects.filter(enabled=True, press_wide=True)
+        plugins = util_models.Plugin.objects.filter(
+            enabled=True,
+            press_wide=True,
+            homepage_element=False,
+        )
 
     for plugin in plugins:
         try:
             module_name = "{0}.{1}.plugin_settings".format("plugins", plugin.name)
             plugin_settings = import_module(module_name)
-            plugin_list.append({'model': plugin,
-                                'manager_url': getattr(plugin_settings, 'MANAGER_URL', ''),
-                                'name': getattr(plugin_settings, 'PLUGIN_NAME')
-                                })
+            plugin_list.append(
+                {'model': plugin,
+                 'manager_url': getattr(plugin_settings, 'MANAGER_URL', ''),
+                 'name': getattr(plugin_settings, 'PLUGIN_NAME')
+                 },
+            )
         except ImportError as e:
-            logging.error("Importing plugin %s failed: %s" % (plugin, e))
+            logger.error("Importing plugin %s failed: %s" % (plugin, e))
             pass
 
     template = 'core/manager/plugins.html'
@@ -1472,6 +1521,7 @@ def editorial_ordering(request, type_to_order, group_id=None):
     return HttpResponse('Thanks')
 
 
+@has_journal
 @editor_user_required
 def kanban(request):
     """
@@ -1594,7 +1644,7 @@ def manage_notifications(request, notification_id=None):
     return render(request, template, context)
 
 
-@staff_member_required
+@editor_user_required
 def email_templates(request):
     """
     Displays a list of email templates
@@ -1611,7 +1661,7 @@ def email_templates(request):
     return render(request, template, context)
 
 
-@staff_member_required
+@editor_user_required
 def edit_email_template(request, template_code, subject=False):
     """
     Allows staff to edit email templates and subjects
@@ -1736,6 +1786,7 @@ def pinned_articles(request):
     return render(request, template, context)
 
 
+@has_journal
 @staff_member_required
 def journal_workflow(request):
     """
@@ -1823,7 +1874,7 @@ def set_session_timezone(request):
         request.session["janeway_timezone"] = chosen_timezone
         status = 200
         response_data['message'] = 'OK'
-        logging.debug("Timezone set to %s for this session" % chosen_timezone)
+        logger.debug("Timezone set to %s for this session" % chosen_timezone)
     else:
         status = 404
         response_data['message'] = 'Timezone not found: %s' % chosen_timezone

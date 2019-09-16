@@ -59,7 +59,8 @@ urlpatterns = [
     url(r'^article/(?P<article_id>\d+)/galley/(?P<galley_id>\d+)/download/',
         views.download_galley,
         name='article_download_galley'),
-    url(r'^collections/$', views.collections, name='journal_collections'),
+    url(r'^collections/$', views.collections, name='journal_collections_type'),
+    url(r'^collections/(?P<issue_type_code>[a-zA-Z]+)/$', views.collections, name='journal_collections'),
     url(r'^collections/(?P<collection_id>\d+)/$', views.collection, name='journal_collection'),
     url(r'^cover/$', views.serve_journal_cover, name='journal_cover_download'),
 
@@ -181,4 +182,9 @@ urlpatterns = [
         ''.format(DOI_REGEX_PATTERN),
         views.doi_redirect,
         name='doi_redirect'),
+
+    url(r'^email/user/(?P<user_id>\d+)/$',
+        views.send_user_email, name='send_user_email'),
+    url(r'^email/user/(?P<user_id>\d+)/article/(?P<article_id>\d+)/$',
+        views.send_user_email, name='send_user_email_article'),
 ]

@@ -305,7 +305,14 @@ class Article(models.Model):
     title = models.CharField(max_length=300, help_text=_('Your article title'))
     subtitle = models.CharField(max_length=300, blank=True, null=True,
                                 help_text=_('Subtitle of the article display format; Title: Subtitle'))
-    abstract = models.TextField(blank=True, null=True)
+    abstract = models.TextField(
+        blank=True,
+        null=True,
+        help_text=_('Please avoid pasting content from word processors as they can add '
+                    'unwanted styling to the abstract. You can retype the abstract '
+                    'here or copy and paste it into notepad/a plain text editor before '
+                    'pasting here.')
+    )
     non_specialist_summary = models.TextField(blank=True, null=True, help_text='A summary of the article for'
                                                                                ' non specialists.')
     keywords = models.ManyToManyField(Keyword, blank=True, null=True)
@@ -336,6 +343,11 @@ class Article(models.Model):
     manuscript_files = models.ManyToManyField('core.File', null=True, blank=True, related_name='manuscript_files')
     data_figure_files = models.ManyToManyField('core.File', null=True, blank=True, related_name='data_figure_files')
     supplementary_files = models.ManyToManyField('core.SupplementaryFile', null=True, blank=True, related_name='supp')
+    source_files = models.ManyToManyField(
+        'core.File',
+        blank=True,
+        related_name='source_files',
+    )
 
     # Galley
     render_galley = models.ForeignKey('core.Galley', related_name='render_galley', blank=True, null=True,
@@ -770,13 +782,17 @@ class Article(models.Model):
     def can_edit(self, user):
         # returns True if a user can edit an article
         # editing is always allowed when a user is staff
-        # otherwise, the user must own the article and it must not have already been published
+        # otherwise, the user must own the article and it
+        # must not have already been published
 
         if user.is_staff:
             return True
         elif user in self.section_editors():
             return True
-        elif not user.is_anonymous() and user.is_editor(request=None, journal=self.journal):
+        elif not user.is_anonymous() and user.is_editor(
+                request=None,
+                journal=self.journal,
+        ):
             return True
         else:
             if self.owner != user:
@@ -1136,7 +1152,7 @@ class Section(TranslatableModel):
         ordering = ('sequence',)
 
     def __str__(self):
-        return self.name
+        return self.safe_translation_getter('name', str(self.pk))
 
     def published_articles(self):
         return Article.objects.filter(section=self, stage=STAGE_PUBLISHED)
@@ -1272,14 +1288,31 @@ class SubmissionConfiguration(models.Model):
     keywords = models.BooleanField(default=False)
     section = models.BooleanField(default=True)
 
-    figures_data = models.BooleanField(default=True, verbose_name=_('Figures and Data Files'))
+    figures_data = models.BooleanField(
+        default=True,
+        verbose_name=_('Figures and Data Files'),
+    )
 
-    default_license = models.ForeignKey(Licence, null=True,
-                                        help_text=_('The default license applied when no option is presented'))
-    default_language = models.CharField(max_length=200, null=True, choices=LANGUAGE_CHOICES,
-                                        help_text=_('The default language of articles when lang is hidden'))
-    default_section = models.ForeignKey(Section, null=True,
-                                        help_text=_('The default section of articles when no option is presented'))
+    default_license = models.ForeignKey(
+        Licence,
+        null=True,
+        blank=True,
+        help_text=_('The default license applied when no option is presented'),
+    )
+    default_language = models.CharField(
+        max_length=200,
+        null=True,
+        blank=True,
+        choices=LANGUAGE_CHOICES,
+        help_text=_('The default language of articles when lang is hidden'),
+    )
+    default_section = models.ForeignKey(
+        Section,
+        null=True,
+        blank=True,
+        help_text=_('The default section of '
+                    'articles when no option is presented'),
+    )
 
     def __str__(self):
         return 'SubmissionConfiguration for {0}'.format(self.journal.name)

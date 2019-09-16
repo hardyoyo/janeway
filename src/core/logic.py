@@ -101,7 +101,7 @@ def resize_and_crop(img_path, size, crop_type='middle'):
             final_thumb = Image.new(mode='RGBA', size=size, color=(255, 255, 255, 0))
             final_thumb.paste(img, offset_tuple)  # paste the thumbnail into the full sized image
 
-            final_thumb.save(img_path)
+            final_thumb.save(img_path, "png")
             return
         elif crop_type == 'bottom':
             box = (img.size[0] - size[0], 0, img.size[0], img.size[1])
@@ -112,7 +112,7 @@ def resize_and_crop(img_path, size, crop_type='middle'):
     else:
         img = img.resize((size[0], size[1]), Image.ANTIALIAS)
 
-    img.save(img_path)
+    img.save(img_path, "png")
 
 
 def settings_for_context(request):
@@ -159,6 +159,13 @@ def get_settings_to_edit(group, journal):
         settings = [
             {'name': 'disable_journal_submission',
              'object': setting_handler.get_setting('general', 'disable_journal_submission', journal)
+             },
+            {'name': 'abstract_required',
+             'object': setting_handler.get_setting(
+                 'general',
+                 'abstract_required',
+                 journal,
+             )
              },
             {'name': 'submission_intro_text',
              'object': setting_handler.get_setting(
@@ -220,6 +227,10 @@ def get_settings_to_edit(group, journal):
                 'name': 'default_review_visibility',
                 'object': setting_handler.get_setting('general', 'default_review_visibility', journal),
                 'choices': review_models.review_visibilty()
+            },
+            {
+                'name': 'review_file_help',
+                'object': setting_handler.get_setting('general', 'review_file_help', journal),
             },
             {
                 'name': 'default_review_days',

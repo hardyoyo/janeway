@@ -9,32 +9,25 @@
 {% block body %}
    
     {% if search_term %}
-        <h5>Searching for: <i>{{ search_term }}</i></h5>
+        <h1>Searching for: <i>{{ search_term }}</i></h1>
     {% elif keyword %}
-        <h5>Keyword: <i>{{ keyword }}</i></h5>
+        <h1>Keyword: <i>{{ keyword }}</i></h1>
     {% endif %}
    
     <div class="row">
         <div class="col m8">
-            <div class="card">
-                <div class="card-content">
-                    <span class="card-title">
-                        {% trans "Articles" %}
-                    </span>
-                    {% for article in articles %}
-                        {% include "elements/article_listing.html" with article=article %}
-                        {% empty %}
-                        <p>{% trans "No articles to display." %}</p>
-                    {% endfor %}
-                </div>
-            </div>
+            <h2>{% trans "Articles" %}</h2>
+            {% for article in articles %}
+                {% include "elements/article_listing.html" with article=article %}
+                {% empty %}
+                <p>{% trans "No articles to display." %}</p>
+            {% endfor %}
+
         </div>
         <div class="col m4">
+            <h2>{% trans "Searching" %}</h2>
             <div class="card">
                 <div class="card-content">
-                    <span class="card-title">
-                        {% trans "Searching" %}
-                    </span>
                     <form method="POST">
                         {% csrf_token %}
                         {% if not keyword %}

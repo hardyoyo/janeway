@@ -8,14 +8,17 @@ import json
 from django.urls import reverse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.http import HttpResponse
 from django.db.models import Q
 
 from proofing import models as proofing_models
-from security.decorators import proofing_manager_or_editor_required, proofing_manager_for_article_required, \
-    proofreader_or_typesetter_required, proofreader_for_article_required, \
-    typesetter_for_corrections_required
+from security.decorators import (
+    proofing_manager_or_editor_required, proofing_manager_for_article_required,
+    typesetter_user_required, proofreader_for_article_required,
+    typesetter_for_corrections_required, proofing_manager_roles,
+)
 from submission import models as submission_models
 from core import models as core_models, files
 from proofing import models, logic, forms
@@ -24,7 +27,7 @@ from journal import models as journal_models
 from journal.views import article_figure
 
 
-@proofing_manager_or_editor_required
+@proofing_manager_roles
 def proofing_list(request):
     """
     Displays lists of articles and proofing assignments
@@ -150,8 +153,15 @@ def proofing_article(request, article_id):
                 proofing_task.round = article.proofingassignment.current_proofing_round()
                 proofing_task.save()
                 proofing_task.galleys_for_proofing.add(*galleys)
-                return redirect(reverse('notify_proofreader', kwargs={'article_id': article.pk,
-                                                                      'proofing_task_id': proofing_task.pk}))
+                return redirect(
+                    reverse(
+                        'notify_proofreader',
+                        kwargs={
+                            'article_id': article.pk,
+                            'proofing_task_id': proofing_task.pk,
+                        }
+                    )
+                )
 
             # Set the modal to open if this page is not redirected.
             modal = 'add_proofer'
@@ -164,6 +174,66 @@ def proofing_article(request, article_id):
         'modal': modal,
         'user': user if request.POST else None,
         'galleys': galleys if request.POST else None
+    }
+
+    return render(request, template, context)
+
+
+@proofing_manager_for_article_required
+def delete_proofing_round(request, article_id, round_id):
+    """
+    Presents an interface for a PM to delete a proofing round.
+    :param request: HttpRequest object
+    :param article_id: Article object PK
+    :param round_id: Round object PK
+    :return: HttpResponse or HttpRedirect
+    """
+    article = get_object_or_404(
+        submission_models.Article,
+        pk=article_id,
+        journal=request.journal,
+    )
+
+    round = get_object_or_404(
+        models.ProofingRound,
+        pk=round_id,
+        assignment__article=article,
+    )
+
+    proofing_tasks = models.ProofingTask.objects.filter(
+        round=round,
+    )
+
+    correction_tasks = models.TypesetterProofingTask.objects.filter(
+        proofing_task__in=proofing_tasks,
+    )
+
+    if request.POST:
+        round.delete_round_relations(
+            request,
+            article,
+            proofing_tasks,
+            correction_tasks,
+        )
+        logic.delete_round(article, round)
+        messages.add_message(
+            request,
+            messages.INFO,
+            'Proofing Round Deleted',
+        )
+        return redirect(
+            reverse(
+                'proofing_article',
+                kwargs={'article_id': article.pk}
+            )
+        )
+
+    template = 'proofing/delete_proofing_round.html'
+    context = {
+        'article': article,
+        'round': round,
+        'proofing_tasks': proofing_tasks,
+        'correction_tasks': correction_tasks,
     }
 
     return render(request, template, context)
@@ -308,39 +378,64 @@ def notify_proofreader(request, article_id, proofing_task_id):
     return render(request, template, context)
 
 
-@proofreader_or_typesetter_required
-def proofing_requests(request, proofing_task_id=None, typeset_task_id=None, decision=None):
+@login_required
+def proofing_requests(request, proofing_task_id=None, decision=None):
     """
     Displays proofing request to proofreaders
     :param request: HttpRequest object
     :param proofing_task_id: ProofingTask PK
-    :param typeset_task_id: TypesetTask PK
     :param decision: string,
     :return: HttpResponse or HttpRedirect
     """
-    if proofing_task_id or typeset_task_id:
+    if proofing_task_id:
 
         if proofing_task_id:
             logic.handle_proof_decision(request, proofing_task_id, decision)
 
-        if typeset_task_id:
-            logic.handle_typeset_decision(request, typeset_task_id, decision)
-
         return redirect(reverse('proofing_requests'))
 
-    new, active, completed, new_typesetting, active_typesetting, completed_typesetting = logic.get_tasks(request)
+    new, active, completed = logic.get_tasks(request)
 
     template = 'proofing/proofing_requests.html'
     context = {
         'new_requests': new,
         'active_requests': active,
         'completed_requests': completed,
-        'new_typesetting_requests': new_typesetting,
-        'active_typesetting_requests': active_typesetting,
-        'completed_typesetting_requests': completed_typesetting,
+
     }
 
     return render(request, template, context)
+
+
+@typesetter_user_required
+def correction_requests(request):
+
+    if request.POST:
+        typeset_task_id = request.POST.get('typeset_task_id', None)
+        decision = request.POST.get('decision', None)
+
+        if typeset_task_id and decision:
+            logic.handle_typeset_decision(request, typeset_task_id, decision)
+        else:
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'Task ID or Decision missing.'
+            )
+
+        return redirect(reverse('proofing_correction_requests'))
+
+    new, active, completed = logic.get_typesetting_tasks(request)
+
+    template = 'proofing/correction_requests.html'
+    context = {
+        'new_typesetting_requests': new,
+        'active_typesetting_requests': active,
+        'completed_typesetting_requests': completed,
+    }
+
+    return render(request, template, context)
+
 
 
 @proofreader_for_article_required
@@ -425,12 +520,8 @@ def request_typesetting_changes(request, article_id, proofing_task_id):
     """
     article = get_object_or_404(submission_models.Article, pk=article_id)
     proofing_task = get_object_or_404(models.ProofingTask, pk=proofing_task_id)
-
-    if request.GET.get('comments') == 'true':
-        comments = proofing_task.review_comments()
-        form = forms.AssignTypesetter(comments=comments)
-    else:
-        form = forms.AssignTypesetter()
+    form = forms.AssignTypesetter()
+    comments = proofing_task.review_comments()
 
     if request.POST:
         form = forms.AssignTypesetter(request.POST)
@@ -445,16 +536,23 @@ def request_typesetting_changes(request, article_id, proofing_task_id):
             form.add_error(None, 'You must select at least one galley.')
 
         if form.is_valid():
-            typeset_task = form.save(commit=False)
-            typeset_task.proofing_task = proofing_task
-            typeset_task.typesetter = user
-            typeset_task.save()
+            typeset_task = form.save(
+                proofing_task,
+                user,
+                comments,
+                commit=True,
+            )
             typeset_task.galleys.add(*galleys)
             typeset_task.files.add(*files)
 
-            return redirect(reverse('notify_typesetter_changes', kwargs={'article_id': article.pk,
-                                                                         'proofing_task_id': proofing_task.pk,
-                                                                         'typeset_task_id': typeset_task.pk}))
+            return redirect(
+                reverse(
+                    'notify_typesetter_changes',
+                    kwargs={'article_id': article.pk,
+                            'proofing_task_id': proofing_task.pk,
+                            'typeset_task_id': typeset_task.pk},
+                )
+            )
 
     template = 'proofing/request_typesetting_changes.html'
     context = {
@@ -464,6 +562,7 @@ def request_typesetting_changes(request, article_id, proofing_task_id):
         'user': user if request.POST else None,
         'galleys': galleys if request.POST else None,
         'form': form,
+        'comments': comments,
     }
 
     return render(request, template, context)
@@ -536,7 +635,7 @@ def typesetting_corrections(request, typeset_task_id):
             event_logic.Events.raise_event(event_logic.Events.ON_CORRECTIONS_COMPLETE, task_object=article, **kwargs)
 
             messages.add_message(request, messages.INFO, 'Corrections task complete')
-            return redirect(reverse('proofing_requests'))
+            return redirect(reverse('proofing_correction_requests'))
 
     template = 'proofing/typesetting/typesetting_corrections.html'
     context = {

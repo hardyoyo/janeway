@@ -14,12 +14,16 @@ from django.utils import timezone
 from copyediting import models, logic, forms
 from core import models as core_models, files
 from events import logic as event_logic
-from security.decorators import production_user_or_editor_required, copyeditor_user_required, \
-    copyeditor_for_copyedit_required, article_author_required
+from security.decorators import (
+    production_user_or_editor_required, copyeditor_user_required,
+    copyeditor_for_copyedit_required, article_author_required,
+    editor_user_required, senior_editor_user_required
+)
+
 from submission import models as submission_models
 
 
-@production_user_or_editor_required
+@senior_editor_user_required
 def copyediting(request):
     """
     View shows the user a list of articles in Copyediting
@@ -38,7 +42,7 @@ def copyediting(request):
     return render(request, template, context)
 
 
-@production_user_or_editor_required
+@editor_user_required
 def article_copyediting(request, article_id):
     """
     View allows Editor to view and assign copyeditors and author reviews of articles.
@@ -81,7 +85,7 @@ def article_copyediting(request, article_id):
     return render(request, template, context)
 
 
-@production_user_or_editor_required
+@editor_user_required
 def add_copyeditor_assignment(request, article_id):
     """
     Allows a production or editor user to add a new copyeditingassignment.
@@ -132,7 +136,7 @@ def add_copyeditor_assignment(request, article_id):
     return render(request, template, context)
 
 
-@production_user_or_editor_required
+@editor_user_required
 def notify_copyeditor_assignment(request, article_id, copyedit_id):
     """
     Allows a production or editor user to send an email to a newly assigned copyeditor.
@@ -170,7 +174,7 @@ def notify_copyeditor_assignment(request, article_id, copyedit_id):
     return render(request, template, context)
 
 
-@production_user_or_editor_required
+@editor_user_required
 def edit_assignment(request, article_id, copyedit_id):
     """
     Allows a production or editor user to make changes to an existing CopyeditAssignment
@@ -417,7 +421,7 @@ def copyeditor_file(request, copyedit_id, file_id):
     return files.serve_file(request, file_object, article_object)
 
 
-@production_user_or_editor_required
+@editor_user_required
 def editor_review(request, article_id, copyedit_id):
     """
     Allows Editor to review a copyedit.
@@ -426,14 +430,32 @@ def editor_review(request, article_id, copyedit_id):
     :param copyedit_id: CopyeditAssignment PK
     :return: Contextualised Django template
     """
-    article = get_object_or_404(submission_models.Article, pk=article_id)
+    article = get_object_or_404(
+        submission_models.Article,
+        pk=article_id,
+        journal=request.journal,
+    )
     copyedit = get_object_or_404(models.CopyeditAssignment, pk=copyedit_id)
 
     if request.POST:
         if 'accept_note' in request.POST:
             logic.accept_copyedit(copyedit, article, request)
-        elif 'review_note' in request.POST:
-            logic.request_author_review(copyedit, article, request)
+        elif 'author_review' in request.POST:
+            author_review = models.AuthorReview.objects.create(
+                author=article.correspondence_author,
+                assignment=copyedit,
+                notified=True
+            )
+            return redirect(
+                reverse(
+                    'request_author_copyedit',
+                    kwargs={
+                        'article_id': article.pk,
+                        'copyedit_id': copyedit.pk,
+                        'author_review_id': author_review.pk,
+                    }
+                )
+            )
         elif 'reset_note' in request.POST:
             logic.reset_copyedit(copyedit, article, request)
 
@@ -447,8 +469,84 @@ def editor_review(request, article_id, copyedit_id):
         'article': article,
         'copyedit': copyedit,
         'accept_message': logic.get_copyedit_message(request, article, copyedit, 'copyeditor_ack'),
-        'review_message': logic.get_copyedit_message(request, article, copyedit, 'copyeditor_notify_author'),
         'reopen_message': logic.get_copyedit_message(request, article, copyedit, 'copyeditor_reopen_task'),
+    }
+
+    return render(request, template, context)
+
+
+@editor_user_required
+def request_author_copyedit(request, article_id, copyedit_id,
+                            author_review_id):
+    """
+    Allows an editor to request an Author undertake a review.
+    :param request:
+    :param article_id:
+    :param copyedit_id:
+    :param author_review_id:
+    :return:
+    """
+    article = get_object_or_404(
+        submission_models.Article,
+        pk=article_id,
+        journal=request.journal,
+    )
+    copyedit = get_object_or_404(
+        models.CopyeditAssignment,
+        pk=copyedit_id,
+        article=article,
+    )
+    author_review = get_object_or_404(
+        models.AuthorReview,
+        pk=author_review_id,
+        assignment=copyedit,
+    )
+
+    email_content = logic.get_copyedit_message(
+        request,
+        article,
+        copyedit,
+        'copyeditor_notify_author',
+        author_review=author_review,
+
+    )
+
+    email_subject = request.journal.get_setting(
+        'email_subject',
+        'subject_copyeditor_notify_author',
+    )
+
+    if request.POST:
+        logic.request_author_review(
+            request,
+            article,
+            copyedit,
+            author_review,
+        )
+
+        messages.add_message(
+            request,
+            messages.SUCCESS,
+            'Author review requested.',
+        )
+
+        return redirect(
+            reverse(
+                'editor_review',
+                kwargs={
+                    'article_id': article.pk,
+                    'copyedit_id': copyedit.pk,
+                }
+            )
+        )
+
+    template = 'copyediting/request_author_copyedit.html'
+    context = {
+        'article': article,
+        'copyedit': copyedit,
+        'author_review': author_review,
+        'email_content': email_content,
+        'email_subject': email_subject,
     }
 
     return render(request, template, context)

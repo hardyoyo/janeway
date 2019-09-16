@@ -25,6 +25,7 @@ def install():
         enabled=True,
         display_name='News',
         press_wide=True,
+        homepage_element=True,
     )
 
     for journal in journals:
@@ -70,13 +71,16 @@ def install():
         element.save()
 
 
-
 def hook_registry():
     try:
         install()
-        return {'yield_homepage_element_context': {'module': 'core.homepage_elements.news.hooks',
-                                                   'function': 'yield_homepage_element_context'}
-                }
+        return {
+            'yield_homepage_element_context': {
+                'module': 'core.homepage_elements.news.hooks',
+                'function': 'yield_homepage_element_context',
+                'name': PLUGIN_NAME,
+            }
+        }
     except (OperationalError, ProgrammingError):
         # if we get here the database hasn't yet been created
         return {}

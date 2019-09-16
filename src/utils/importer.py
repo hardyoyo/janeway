@@ -24,9 +24,9 @@ def clear_db(journal):
 
     all_articles.delete()
 
-    all_issues = journal_models.Issue.objects.all()
+    issues = journal_models.Issue.objects.filter(journal=journal)
 
-    all_issues.delete()
+    issues.delete()
 
     all_users = core_models.Account.objects.filter(is_admin=False)
 
@@ -75,8 +75,9 @@ def import_up_article(**options):
 
     if options['delete']:
         clear_db(journal)
+    update = options.get("update", False)
 
-    up.import_article(journal, user, url)
+    up.import_article(journal, user, url, update=update)
 
 
 def import_issue_images(**options):

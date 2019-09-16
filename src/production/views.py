@@ -17,20 +17,23 @@ from events import logic as event_logic
 from core import models as core_models
 from cron import models as cron_task
 from production import logic, models, forms
-from security.decorators import (editor_user_required,
-                                 production_user_or_editor_required,
-                                 article_production_user_required,
-                                 article_stage_production_required,
-                                 has_journal,
-                                 typesetter_or_editor_required,
-                                 typesetter_user_required,
-                                 typesetting_user_or_production_user_or_editor_required)
+from security.decorators import (
+    editor_user_required,
+    production_user_or_editor_required,
+    article_production_user_required,
+    article_stage_production_required,
+    has_journal,
+    typesetter_or_editor_required,
+    typesetter_user_required,
+    typesetting_user_or_production_user_or_editor_required,
+    production_manager_roles
+)
 from submission import models as submission_models
 from utils import setting_handler
 from journal.views import article_figure
 
 
-@production_user_or_editor_required
+@production_manager_roles
 def production_list(request):
     """
     Diplays a list of new, assigned and the user's production assignments.
@@ -232,7 +235,8 @@ def production_done(request, article_id):
     assignment.closed = timezone.now()
 
     for task in assignment.typesettask_set.all():
-        task.completed = timezone.now()
+        if not task.completed:
+            task.completed = timezone.now()
         task.editor_reviewed = True
 
         task.save()
@@ -295,7 +299,6 @@ def production_article(request, article_id):
                     uploaded_file,
                     True,
                     "XML",
-                    False,
                 )
 
         if 'pdf' in request.POST:
@@ -306,7 +309,6 @@ def production_article(request, article_id):
                     uploaded_file,
                     True,
                     "PDF",
-                    False,
                 )
 
         if 'other' in request.POST:
@@ -317,7 +319,6 @@ def production_article(request, article_id):
                     uploaded_file,
                     True,
                     "Other",
-                    True,
                 )
 
         if 'prod' in request.POST:
@@ -333,6 +334,20 @@ def production_article(request, article_id):
             label = request.POST.get('label', 'Supplementary File')
             for uploaded_file in request.FILES.getlist('supp-file'):
                 logic.save_supp_file(article, request, uploaded_file, label)
+
+        if 'source' in request.POST:
+            for uploaded_file in request.FILES.getlist('source-file'):
+                logic.save_source_file(
+                    article,
+                    request,
+                    uploaded_file,
+                )
+        if not request.FILES:
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'No files uploaded.'
+            )
 
         return redirect(
             reverse(
@@ -480,11 +495,12 @@ def assign_typesetter(request, article_id, production_assignment_id):
 
 @article_stage_production_required
 @production_user_or_editor_required
-def notify_typesetter(request, typeset_id):
+def notify_typesetter(request, typeset_id, event=True):
     """
     Optionally allows the PM to send the Typesetter an email, it can be skpped.
     :param request: HttpRequest object
     :param typeset_id: TypesetTask object PK
+    :param event: string either 'true' or 'false'
     :return: HttpRedirect if POST otherwise HttpResponse
     """
     typeset = get_object_or_404(
@@ -492,6 +508,21 @@ def notify_typesetter(request, typeset_id):
         pk=typeset_id,
         assignment__article__journal=request.journal,
     )
+
+    if typeset.notified:
+        messages.add_message(
+            request,
+            messages.INFO,
+            'A notification has already been sent for this task.',
+        )
+
+        return redirect(
+            reverse(
+                'production_article',
+                kwargs={'article_id': typeset.assignment.article.pk},
+            )
+        )
+
     user_message_content = logic.get_typesetter_notification(typeset, request)
 
     if request.POST:
@@ -502,10 +533,15 @@ def notify_typesetter(request, typeset_id):
             'request': request,
             'skip': True if 'skip' in request.POST else False
         }
-        typeset.notified = True
-        typeset.save()
-        event_logic.Events.raise_event(
-            event_logic.Events.ON_TYPESET_TASK_ASSIGNED, **kwargs)
+
+        if 'skip' not in request.POST:
+            typeset.notified = True
+            typeset.save()
+
+        if event or event == 'true':
+            event_logic.Events.raise_event(
+                event_logic.Events.ON_TYPESET_TASK_ASSIGNED, **kwargs)
+
         return redirect(reverse('production_article', kwargs={
             'article_id': typeset.assignment.article.pk}))
 
@@ -665,27 +701,70 @@ def do_typeset_task(request, typeset_id):
                 task.completed = timezone.now()
                 task.save()
 
-                kwargs = {'typeset_task': typeset_task, 'request': request}
-                event_logic.Events.raise_event(event_logic.Events.ON_TYPESET_COMPLETE, **kwargs)
+                kwargs = {
+                    'typeset_task': typeset_task,
+                    'request': request,
+                }
+                event_logic.Events.raise_event(
+                    event_logic.Events.ON_TYPESET_COMPLETE,
+                    **kwargs,
+                )
 
-                messages.add_message(request, messages.INFO, 'Typeset assignment complete.')
+                messages.add_message(
+                    request,
+                    messages.INFO,
+                    'Typeset assignment complete.',
+                )
                 return redirect(reverse('typesetter_requests'))
 
         new_galley = None
         if 'xml' in request.POST:
             for uploaded_file in request.FILES.getlist('xml-file'):
-                new_galley = logic.save_galley(article, request, uploaded_file, True, "XML", False)
+                new_galley = logic.save_galley(
+                    article,
+                    request,
+                    uploaded_file,
+                    True,
+                    "XML",
+                )
 
         if 'pdf' in request.POST:
             for uploaded_file in request.FILES.getlist('pdf-file'):
-                new_galley = logic.save_galley(article, request, uploaded_file, True, "PDF", False)
+                new_galley = logic.save_galley(
+                    article,
+                    request,
+                    uploaded_file,
+                    True,
+                    "PDF",
+                )
 
         if 'other' in request.POST:
             for uploaded_file in request.FILES.getlist('other-file'):
-                new_galley = logic.save_galley(article, request, uploaded_file, True, "Other", True)
+                new_galley = logic.save_galley(
+                    article,
+                    request,
+                    uploaded_file,
+                    True,
+                    "Other",
+                )
+
+        if 'source' in request.POST:
+            for uploaded_file in request.FILES.getlist('source-file'):
+                logic.save_source_file(
+                    article,
+                    request,
+                    uploaded_file,
+                )
 
         if new_galley:
             typeset_task.galleys_loaded.add(new_galley.file)
+
+        if not request.FILES:
+            messages.add_message(
+                request,
+                messages.WARNING,
+                'No files uploaded.'
+            )
 
         return redirect(reverse('do_typeset_task', kwargs={'typeset_id': typeset_task.pk}))
 
@@ -736,20 +815,44 @@ def edit_galley(request, galley_id, typeset_id=None, article_id=None):
             pk=article_id,
             journal=request.journal
         )
-    galley = get_object_or_404(core_models.Galley,
-                               pk=galley_id,
-                               article=article)
+
+    galley = get_object_or_404(
+        core_models.Galley,
+        pk=galley_id,
+        article=article,
+    )
 
     if request.POST:
 
         if 'delete' in request.POST:
             if typeset_task:
-                logic.handle_delete_request(request, galley, typeset_task=typeset_task, page="edit")
-                return redirect(reverse('do_typeset_task', kwargs={'typeset_id': typeset_task.pk}))
+                logic.handle_delete_request(
+                    request,
+                    galley,
+                    typeset_task=typeset_task,
+                    page="edit",
+                )
+                return redirect(
+                    reverse(
+                        'do_typeset_task',
+                        kwargs={'typeset_id': typeset_task.pk},
+                    )
+                )
             else:
-                logic.handle_delete_request(request, galley, article=article, page="pm_edit")
+                print(galley)
+                logic.handle_delete_request(
+                    request,
+                    galley,
+                    article=article,
+                    page="pm_edit",
+                )
                 if not return_url:
-                    return redirect(reverse('production_article', kwargs={'article_id': article.pk}))
+                    return redirect(
+                        reverse(
+                            'production_article',
+                            kwargs={'article_id': article.pk},
+                        )
+                    )
                 else:
                     return redirect(return_url)
 
@@ -757,31 +860,70 @@ def edit_galley(request, galley_id, typeset_id=None, article_id=None):
 
         if 'fixed-image-upload' in request.POST:
             if request.POST.get('datafile') is not None:
-                logic.use_data_file_as_galley_image(galley, request, label)
+                logic.use_data_file_as_galley_image(
+                    galley,
+                    request,
+                    label,
+                )
             for uploaded_file in request.FILES.getlist('image'):
-                logic.save_galley_image(galley, request, uploaded_file, label, fixed=True)
+                logic.save_galley_image(
+                    galley,
+                    request,
+                    uploaded_file,
+                    label,
+                    fixed=True,
+                )
 
         if 'image-upload' in request.POST:
             for uploaded_file in request.FILES.getlist('image'):
-                logic.save_galley_image(galley, request, uploaded_file, label, fixed=False)
+                logic.save_galley_image(
+                    galley,
+                    request,
+                    uploaded_file,
+                    label,
+                    fixed=False,
+                )
 
         elif 'css-upload' in request.POST:
             for uploaded_file in request.FILES.getlist('css'):
-                logic.save_galley_css(galley, request, uploaded_file, 'galley-{0}.css'.format(galley.id), label)
+                logic.save_galley_css(
+                    galley,
+                    request,
+                    uploaded_file,
+                    'galley-{0}.css'.format(galley.id),
+                    label,
+                )
 
         if 'galley-label' in request.POST:
             galley.label = request.POST.get('galley_label')
             galley.save()
 
         if 'replace-galley' in request.POST:
-            logic.replace_galley_file(article, request, galley, request.FILES.get('galley'))
+            logic.replace_galley_file(
+                article, request,
+                galley,
+                request.FILES.get('galley'),
+            )
 
         if typeset_task:
-            return redirect(reverse('edit_galley', kwargs={'typeset_id': typeset_id, 'galley_id': galley_id}))
+            return redirect(
+                reverse(
+                    'edit_galley',
+                    kwargs={'typeset_id': typeset_id, 'galley_id': galley_id},
+                )
+            )
         else:
-            return_path = '?return={return_url}'.format(return_url=return_url) if return_url else ''
-            url = reverse('pm_edit_galley', kwargs={'article_id': article.pk, 'galley_id': galley_id})
-            redirect_url = '{url}{return_path}'.format(url=url, return_path=return_path)
+            return_path = '?return={return_url}'.format(
+                return_url=return_url,
+            ) if return_url else ''
+            url = reverse(
+                'pm_edit_galley',
+                kwargs={'article_id': article.pk, 'galley_id': galley_id},
+            )
+            redirect_url = '{url}{return_path}'.format(
+                url=url,
+                return_path=return_path,
+            )
             return redirect(redirect_url)
 
     template = 'production/edit_galley.html'
