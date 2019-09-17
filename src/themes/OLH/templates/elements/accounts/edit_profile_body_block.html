@@ -1,5 +1,4 @@
 {% load i18n %}
-{% load orcid %}
 
 <div class="row">
         <div class="medium-12 medium-centered large-12 large-centered columns login">
@@ -55,8 +54,7 @@
                     <div class="row column log-in-form">
 
                         {% include "elements/forms/errors.html" with form=form %}
-                        {% orcidUrl as orcid_url %}
-                        {% include "elements/accounts/user_form.html" with form=form orcid_url=orcid_url %}
+                        {% include "elements/accounts/user_form.html" with form=form %}
                         <p><button type="submit" name="edit_profile" class="success button float-right">{% trans "Update" %}</button></p>
                     </div>
                 </div>
