@@ -335,8 +335,8 @@ class Article(models.Model):
                                               null=True, on_delete=models.SET_NULL)
 
     competing_interests_bool = models.BooleanField(default=False)
-    competing_interests = models.TextField(blank=True, null=True, help_text="If you have any competing or conflict"
-                                                                            "of insterests in the publication of this "
+    competing_interests = models.TextField(blank=True, null=True, help_text="If you have any conflict "
+                                                                            "of interests in the publication of this "
                                                                             "article please state them here.")
 
     # Files
@@ -1044,6 +1044,13 @@ class Article(models.Model):
             return self.productionassignment
         except ObjectDoesNotExist:
             return None
+
+    @property
+    def citation_count(self):
+        article_link_count = self.articlelink_set.all().count()
+        book_link_count = self.booklink_set.all().count()
+
+        return article_link_count + book_link_count
 
 
 class FrozenAuthor(models.Model):
