@@ -439,7 +439,7 @@ END_POINT = 'eu-west-2'  # eg. eu-west-1
 S3_HOST = 's3.eu-west-2.amazonaws.com'  # eg. s3.eu-west-1.amazonaws.com
 
 BACKUP_TYPE = 'directory'  # s3 or directory
-BACKUP_DIR = '/path/to/backup/dir/'
+BACKUP_DIR = '/apps/eschol/tmp/janeway_backup'
 BACKUP_EMAIL = False  # If set to True, will send an email each time backup is run
 
 URL_CONFIG = 'path'  # path or domain
