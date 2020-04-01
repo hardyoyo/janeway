@@ -54,6 +54,11 @@ def cover_images_upload_path(instance, filename):
     return os.path.join(path, filename)
 
 
+def default_xsl():
+    return core_models.XSLFile.objects.get(
+            label=settings.DEFAULT_XSL_FILE_LABEL).pk
+
+
 def issue_large_image_path(instance, filename):
     try:
         filename = str(uuid.uuid4()) + '.' + str(filename.split('.')[1])
@@ -62,11 +67,6 @@ def issue_large_image_path(instance, filename):
 
     path = "issues/{0}".format(instance.pk)
     return os.path.join(path, filename)
-
-
-def default_xsl():
-    return core_models.XSLFile.objects.get(
-            label=settings.DEFAULT_XSL_FILE_LABEL).pk
 
 
 class Journal(AbstractSiteModel):
