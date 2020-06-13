@@ -16,7 +16,7 @@ services:
         - '8000:8000'
       environment:
         PYTHONPATH: "/app/src"
-        # DJANGO_SETTINGS_MODULE: "src.settings" # I think Janeway is incompatible with this ENV
+        DJANGO_SETTINGS_MODULE: "core.settings" # this is the path to the settings file, which is in src/core/settings.py
     moreHttpPorts:
       - '8000'
   db:
