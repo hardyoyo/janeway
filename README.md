@@ -26,20 +26,22 @@ Uninstalling Janeway is as simple as running ``make uninstall`` which will delet
 
 # Using Lando for an alternative development environment (optional)
 
-Steps to get the app running on your local machine, with Lando
+Lando provides a simple-to-use alternative to managing a development environment, while maintaining future flexibility to alter different aspects of the environment. Here are the steps required to get the app running on your local machine, with Lando
 1. Make sure [Lando](https://lando.dev/) is installed
- > Lando comes bundled with Docker Desktop, if you already have Docker Desktop installed, don't re-install it, just ensure you have the same version as what is bundled with Lando.
+ > Lando comes bundled with Docker Desktop, if you already have Docker Desktop installed, don't re-install it, just ensure you have the same (or newer) version as what is bundled with Lando.
 2. Copy `local.env.example` to `local.env` and customize as appropriate (the database configuration is done with environment variables, so pay attention to `local.env` if it's important to you--however, the `defaults.env` file should be sufficient to get started)
 3. `lando poweroff` (defensively ensure no other Lando environments are running, probably not necessary, but a good habit)
 4. `lando rebuild`
 5. When you see the big "Boomshakala" message from Lando, you're ready to proceed
 6. `lando django-admin check` will validate the installation is working
-7. Revise your src/core/settings.py file as directed in the [Installation](https://github.com/BirkbeckCTP/janeway/wiki/Installation#database-setup-and-final-installation) instructions
+7. Revise your src/core/settings.py file as directed in the [Installation](https://janeway.readthedocs.io/en/feature-documentation/installation.html#database-setup-and-final-installation) instructions
 8. `lando logs -f` will show you the log output from Django, though when you're getting started, `lando django-admin check` will help you find configuration errors much faster than sifting through log file output
 9. `lando manage <command>` will send commands to the src/core/manage.py script, run `lando manage -h` to see more info
-10. `lando python <command>` will send Python commands to the appserver
-7. Browse to `http://localhost:8000` to see the site in action
-8. run `lando` to see what other commands are available.
+10. `lando manage install_janeway` will continue your installation of Janeway
+11. `lando manage test` will run the Janeway unit test suite
+11. `lando python <command>` will send Python commands to the appserver
+12. Browse to `http://localhost:8000` to see the site in action
+13. run `lando` to see what other Lando tooling commands are available.
 
 # Lando Tooling
 * `lando psql` Drops into the PostgreSQL client running on the database service
