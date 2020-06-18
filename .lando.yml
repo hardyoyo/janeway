@@ -1,5 +1,11 @@
 ---
 name: janeway
+
+# CAREFUL with this env file, Docker env files don't support interpolation!
+env_file:
+  - defaults.env
+  - local.env
+
 services:
   appserver:
     type: python:3.5.9
