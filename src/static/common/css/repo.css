@@ -39,7 +39,9 @@ nav, nav .nav-wrapper i, nav a.button-collapse, nav a.button-collapse i {
 }
 
 .carousel-text-wrapper {
-    opacity: 0.9 !important;
+    background: #1a1f2e;
+    opacity: 0.8;
+    padding: 10px;
 }
 
 .carousel-text-wrapper a {

@@ -1,0 +1,36 @@
+{% extends "core/base.html" %}
+{% load static from staticfiles %}
+{% load hooks %}
+{% load i18n %}
+
+{% block page_title %}{% trans issue_type.plural_name  %}{% endblock %}
+{% block title %}{% trans issue_type.plural_name  %}{% endblock %}
+
+{% block body %}
+
+    <div class="row">
+        {% for collection in collections %}
+             <div class="col m6">
+                <div class="card horizontal">
+                    <div class="card-image">
+                        {% if collection.cover_image or journal.default_cover_image %}<img class="issue_image" src="{% if collection.cover_image %}{{ collection.cover_image.url }}{% else %}{{ journal.default_cover_image.url }}{% endif %}" alt="{{ collection.issue_title }}" class="img-fluid">{% endif %}
+                    </div>
+                    <div class="card-stacked">
+                        <div class="card-content">
+                            <span class="card-title">{{ collection.issue_title }}</span>
+                            <p>Published: {{ collection.date|date:"d/m/y" }}</p>
+                            <p>{{ collection.issue_description|safe }}</p>
+                        </div>
+                        <div class="card-action">
+                            <a href="{% url 'journal_collection' collection.id %}">{% trans "View Collection" %}</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <h4>{% trans "There are no collections to display" %}</h4>
+        {% endfor %}
+    </div>
+
+
+{% endblock %}

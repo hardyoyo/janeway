@@ -1,0 +1,45 @@
+{% extends "core/base.html" %}
+{% load static from staticfiles %}
+
+{% block title %}Editorial Team{% endblock title %}
+{% block page_title %}Editorial Team{% endblock page_title %}
+
+{% block body %}
+    <div class="row">
+        <div class="col m12">
+            <h1 class="no-bottom-margin">Editorial Team</h1>
+        </div>
+    </div>
+
+    {% for group in editorial_groups %}
+        <div class="row">
+            <div class="col m12">
+                <h2>{{ group.name }}</h2>
+                {% if group.description %}<p>{{ group.description|linebreaksbr }}</p>{% endif %}
+            </div>
+            {% for member in group.members %}
+                <div class="col s12 m3">
+                    <div class="card editorial-card">
+                        {% if journal_settings.general.enable_editorial_images %}
+                            <div class="card-image">
+                                <img src="{% if member.user.profile_image %}{{ member.user.profile_image.url }}{% else %}{% static "common/img/icons/users.png" %}{% endif %}">
+                            </div>
+                        {% endif %}
+                        <div class="card-content" style="min-height: 190px;">
+                            <span class="card-title small-card-title">{{ member.user.full_name }}</span>
+                            <p>
+                                <small>{{ member.user.affiliation }}</small>
+                            </p>
+
+                            <p>
+                            {% include "elements/journal/editorial_social_content.html" with user=member.user %}
+                            </p>
+
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+
+{% endblock body %}
