@@ -22,6 +22,8 @@ from utils import logic
 from repository import install
 from utils.function_cache import cache
 
+from press import models as press_models
+
 
 STAGE_PREPRINT_UNSUBMITTED = 'preprint_unsubmitted'
 STAGE_PREPRINT_REVIEW = 'preprint_review'
@@ -231,8 +233,12 @@ class Repository(model_utils.AbstractSiteModel):
                 path = "/{}".format(self.short_name)
             return request.build_absolute_uri(path)
         else:
-            return request.press.repository_path_url(self, path)
-
+            try:
+                return request.press.repository_path_url(self, path)
+            except AttributeError:
+                # let's just grab the first Press object and hope
+                p = press_models.Press.get_press(None)
+                return p.repository_path_url(self, path)
 
 class RepositoryField(models.Model):
     repository = models.ForeignKey(Repository)
