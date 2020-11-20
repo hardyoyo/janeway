@@ -212,28 +212,6 @@ class Repository(model_utils.AbstractSiteModel):
         return RepositoryField.objects.filter(
             repository=self,
         )
-
-    def site_url(self, path=""):
-        if settings.URL_CONFIG == "path":
-            return self._site_path_url(path)
-
-        return logic.build_url(
-            netloc=self.domain,
-            scheme=self.SCHEMES[self.is_secure],
-            port=None,
-            path=path,
-        )
-
-    def _site_path_url(self, path=None):
-        request = logic.get_current_request()
-        if request and request.repository == self:
-            if not path:
-                path = "/{}".format(self.short_name)
-            return request.build_absolute_uri(path)
-        else:
-            return request.press.repository_path_url(self, path)
-
-
 class RepositoryField(models.Model):
     repository = models.ForeignKey(Repository)
     name = models.CharField(max_length=255)
