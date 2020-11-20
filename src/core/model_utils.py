@@ -8,6 +8,7 @@ __maintainer__ = "Birkbeck Centre for Technology and Publishing"
 
 from django.db import models
 from django.http.request import split_domain_port
+from django.conf import settings
 
 from utils import logic
 
@@ -42,6 +43,12 @@ class AbstractSiteModel(models.Model):
         return obj
 
     def site_url(self, path=None):
+        if settings.URL_CONFIG == "path":
+            try:
+                path = self.short_name + path
+            except AttributeError:
+                pass
+                
         return logic.build_url(
             netloc=self.domain,
             scheme=self.SCHEMES[self.is_secure],
