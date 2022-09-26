@@ -3,6 +3,7 @@ from rest_framework import serializers
 from core import models as core_models
 from journal import models as journal_models
 from submission import models as submission_models
+from repository import models as repository_models
 
 
 class LicenceSerializer(serializers.HyperlinkedModelSerializer):
@@ -80,7 +81,6 @@ class IssueSerializer(serializers.HyperlinkedModelSerializer):
         source="issue_type.code",
     )
 
-
 class JournalSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
@@ -127,3 +127,36 @@ class AccountRoleSerializer(serializers.ModelSerializer):
         else:
             account_role = core_models.AccountRole.objects.create(**validated_data)
             return account_role
+
+class RepositorySerializer(serializers.HyperlinkedModelSerializer):
+    preprints = serializers.HyperlinkedRelatedField(
+        many=True,
+        read_only=True,
+        view_name='preprint-detail',
+    )
+    class Meta:
+        model = repository_models.Repository
+        fields = ('pk', 'name', 'preprints')
+
+
+class PreprintSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta:
+        model = repository_models.Preprint
+        # fields = ('pk', 'title', 'subtitle', 'abstract', 'language', 'license', 'keywords', 'section',
+        #           'is_remote', 'remote_url', 'frozenauthors', 'date_submitted', 'date_accepted',
+        #           'date_published', 'render_galley', 'galleys')
+
+    license = LicenceSerializer()
+    keywords = KeywordsSerializer(
+        many=True,
+        read_only=True,
+    )
+    section = serializers.ReadOnlyField(
+        read_only=True,
+        source='section.name'
+    )
+    frozenauthors = FrozenAuthorSerializer(
+        many=True,
+        source='frozenauthor_set',
+    )

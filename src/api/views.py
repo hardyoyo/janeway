@@ -18,7 +18,6 @@ from core import models as core_models
 from submission import models as submission_models
 from journal import models as journal_models
 
-
 @api_view(['GET'])
 @permission_classes((permissions.AllowAny, ))
 def index(request):
@@ -139,7 +138,34 @@ class ArticleViewSet(viewsets.ModelViewSet):
                                                                 date_published__lte=timezone.now())
 
         return queryset
+@permission_classes((permissions.AllowAny, ))
+class RepositoryViewSet(viewsets.ModelViewSet):
+    """
+    API Endpoint for repositories.
+    """
+    from repository import models as repository_models
+    queryset = repository_models.Repository.objects.all()
+    serializer_class = serializers.RepositorySerializer
+    http_method_names = ['get']
 
+@permission_classes((permissions.AllowAny, ))
+class PreprintViewSet(viewsets.ModelViewSet):
+    """
+    API Endpoint for preprints
+    """
+    serializer_class = serializers.PreprintSerializer
+    http_method_names = ['get']
+
+    def get_queryset(self):
+        if self.request.preprint:
+            queryset = submission_models.Article.objects.filter(journal=self.request.journal,
+                                                                stage=submission_models.STAGE_PUBLISHED,
+                                                                date_published__lte=timezone.now())
+        else:
+            queryset = submission_models.Article.objects.filter(stage=submission_models.STAGE_PUBLISHED,
+                                                                date_published__lte=timezone.now())
+
+        return queryset
 
 def oai(request):
     articles = submission_models.Article.objects.filter(stage=submission_models.STAGE_PUBLISHED)
@@ -152,7 +178,6 @@ def oai(request):
     }
 
     return render(request, template, context, content_type="application/xml")
-
 
 def kbart_csv(request):
     return kbart(request, tsv=False)
