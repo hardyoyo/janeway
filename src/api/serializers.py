@@ -74,6 +74,12 @@ class PreprintSubjectSerializer(serializers.HyperlinkedModelSerializer):
         model = repository_models.Subject
         fields = ('name',)
 
+class PreprintFileSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta:
+        model = repository_models.PreprintFile
+        fields = ('filename', 'mime_type', 'download_url',)
+
 class IssueSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
@@ -146,9 +152,9 @@ class PreprintSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = repository_models.Preprint
-        fields = ('pk', 'title', 'abstract', 'license', 'keywords', 
+        fields = ('pk', 'title', 'abstract', 'publisher', 'license', 'keywords', 
                   'date_submitted', 'date_accepted', 'date_published',
-                  'doi', 'preprint_doi', 'authors', 'subject',)
+                  'doi', 'preprint_doi', 'authors', 'subject', 'files')
 
     authors = PreprintAccountSerializer(
         many=True,
@@ -160,6 +166,10 @@ class PreprintSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True,
     )
     subject = PreprintSubjectSerializer(
+        many=True,
+        read_only=True,
+    )
+    files = PreprintFileSerializer(
         many=True,
         read_only=True,
     )
