@@ -74,13 +74,13 @@ class PreprintSubjectSerializer(serializers.HyperlinkedModelSerializer):
         model = repository_models.Subject
         fields = ('name',)
 
-class PreprintFileSerializer(serializers.HyperlinkedModelSerializer):
+class PreprintFileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = repository_models.PreprintFile
         fields = ('original_filename', 'mime_type', 'download_url',)
 
-class PreprintSupplementaryFileSerializer(serializers.HyperlinkedModelSerializer):
+class PreprintSupplementaryFileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = repository_models.PreprintSupplementaryFile
@@ -153,13 +153,14 @@ class AccountRoleSerializer(serializers.ModelSerializer):
             account_role = core_models.AccountRole.objects.create(**validated_data)
             return account_role
 
-class PreprintSerializer(serializers.HyperlinkedModelSerializer):
+class PreprintSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = repository_models.Preprint
         fields = ('pk', 'title', 'abstract', 'license', 'keywords', 
                   'date_submitted', 'date_accepted', 'date_published',
                   'doi', 'preprint_doi', 'authors', 'subject', 'files', 'supplementary_files')
+        depth = 2
 
     authors = PreprintAccountSerializer(
         many=True,
@@ -175,10 +176,12 @@ class PreprintSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True,
     )
     files = PreprintFileSerializer(
+        source="preprintfile_set",
         many=True,
         read_only=True,
     )
-    supplementary_files=PreprintSupplementaryFileSerializer(
+    supplementary_files = PreprintSupplementaryFileSerializer(
+        source="preprintsupplementaryfile_set",
         many=True,
         read_only=True,
     )
