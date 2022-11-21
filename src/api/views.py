@@ -146,9 +146,7 @@ class PreprintViewSet(viewsets.ModelViewSet):
     """
     API Endpoint for preprints.
     """
-    pass
     serializer_class = serializers.PreprintSerializer
-    http_method_names = ['get']
 
     def get_queryset(self):
         return repository_models.Preprint.objects.filter(repository=self.request.repository,
@@ -324,3 +322,21 @@ def kbart(request, tsv=True):
         writer.writerow(journal_line)
 
     return response
+
+def swagger_ui(request):
+    
+    template = 'apis/swagger_ui.html'
+    context = {
+        'schema_url':'openapi-schema'
+    }
+
+    return render(request, template, context)
+
+def redoc(request):
+    
+    template = 'apis/redoc.html'
+    context = {
+        'schema_url':'openapi-schema'
+    }
+
+    return render(request, template, context)
