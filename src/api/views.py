@@ -102,20 +102,18 @@ class IssueViewSet(viewsets.ModelViewSet):
 
 class LicenceViewSet(viewsets.ModelViewSet):
     """
-    API Endpoint for journals.
+    API Endpoint for journals and preprints
     """
     serializer_class = serializers.LicenceSerializer
-    http_method_names = ['get']
 
     def get_queryset(self):
 
         if self.request.journal:
             queryset = submission_models.Licence.objects.filter(journal=self.request.journal)
         else:
-            queryset = submission_models.Licence.objects.filter(journal=self.request.press)
+            queryset = submission_models.Licence.objects.filter(press=self.request.press)
 
         return queryset
-
 
 class KeywordsViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.KeywordsSerializer
@@ -152,7 +150,26 @@ class PreprintViewSet(viewsets.ModelViewSet):
         return repository_models.Preprint.objects.filter(repository=self.request.repository,
                                                          date_published__lte=timezone.now(),
                                                          stage=repository_models.STAGE_PREPRINT_PUBLISHED)
-
+        # NOTE: this might need to be a perform_create, if so, remove create,
+        # there can be ONLY ONE, perform_create can make more than one object at
+        # at time, which might be required for a sensible API
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        pass
+        # TODO: make this work, and then remove the pass line above
+        # https://ilovedjango.com/django/rest-api-framework/views/tips/sub/modelviewset-django-rest-framework/
+        
+        # NOTES: date (fields date_submitted, date_accepted, date_published)
+        # should be handled by this create method, and not accepted via the API,
+        # or just ignored
+        
+@permission_classes((permissions.IsAdminUser,))
+class PreprintFileViewSet(viewsets.ModelViewSet):
+    """
+    API Endpoint for preprint files
+    """
+    queryset = repository_models.PreprintFile.objects.filter()
+    serializer_class = serializers.PreprintFileSerializer
 
 def oai(request):
     articles = submission_models.Article.objects.filter(stage=submission_models.STAGE_PUBLISHED)

@@ -15,6 +15,8 @@ router.register(r'preprints', views.PreprintViewSet, 'preprint')
 router.register(r'licences', views.LicenceViewSet, 'licence')
 router.register(r'keywords', views.KeywordsViewSet, 'keywords')
 router.register(r'accounts', views.AccountViewSet, 'accounts')
+router.register(r'preprintfiles', views.PreprintFileViewSet, 'preprintfiles')
+
 
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browsable API.
@@ -23,7 +25,7 @@ urlpatterns = [
     url(r'^oai/$', oai_views.oai_view_factory, name='OAI_list_records'),
     url(r'^kbart/$', views.kbart, name='kbart'),
     url(r'^kbart/csv$', views.kbart_csv, name='kbart'),
-    url(r'^schema/$', get_schema_view(title="Janeway API", description="API for Janeway", version="0.0.1"), name='openapi-schema'),
+    url(r'^schema/$', get_schema_view(title="Janeway API", description="Experimental API for Janeway, use at your own risk.", version="0.0.1"), name='openapi-schema'),
     url(r'^swagger_ui/$', views.swagger_ui, name='swagger_ui'),
     url(r'^redoc/$', views.redoc, name='redoc'),
 ]

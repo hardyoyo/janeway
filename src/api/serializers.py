@@ -4,22 +4,29 @@ from core import models as core_models
 from journal import models as journal_models
 from submission import models as submission_models
 from repository import models as repository_models
+from press import models as press_models
 
+class PressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = press_models.Press
+        fields = ['pk']
 
-class LicenceSerializer(serializers.HyperlinkedModelSerializer):
-
+class LicenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = submission_models.Licence
-        fields = ('name', 'short_name', 'text', 'url')
+        fields = ('pk','name', 'short_name', 'text', 'url', 'press')
+        
+        press = PressSerializer()
 
-
+    def create(self, validated_data):
+        # TODO: add some kind of security here, plz
+        license = submission_models.Licence.objects.create(**validated_data)
+        return license
 class KeywordsSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = submission_models.Keyword
         fields = ('word',)
-
-
 class FrozenAuthorSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
@@ -30,10 +37,7 @@ class FrozenAuthorSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True,
         source="country.name",
     )
-
-
 class GalleySerializer(serializers.HyperlinkedModelSerializer):
-
     class Meta:
         model = core_models.Galley
         fields = ('label', 'type', 'path')
@@ -78,7 +82,7 @@ class PreprintFileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = repository_models.PreprintFile
-        fields = ('original_filename', 'mime_type', 'download_url',)
+        fields = ('original_filename', 'mime_type', 'download_url', 'file', 'preprint')
 
 class PreprintSupplementaryFileSerializer(serializers.ModelSerializer):
 
@@ -159,34 +163,31 @@ class RepositoryFieldAnswerSerializer(serializers.ModelSerializer):
         fields = ['pk', 'answer']
 
 class PreprintSerializer(serializers.ModelSerializer):
+    # TODO: write a create method
+    # The `.create()` method does not support writable nested fields by default.
+    # Write an explicit `.create()` method for serializer `api.serializers.PreprintSerializer`, or set `read_only=True` on nested serializer fields.
 
     class Meta:
         model = repository_models.Preprint
         fields = ('pk', 'title', 'abstract', 'license', 'keywords', 
                   'date_submitted', 'date_accepted', 'date_published',
                   'doi', 'preprint_doi', 'authors', 'subject', 'files', 'supplementary_files')
-        depth = 2
 
     authors = PreprintAccountSerializer(
         many=True,
-        read_only=True,
     )
     license = LicenceSerializer()
     keywords = KeywordsSerializer(
         many=True,
-        read_only=True,
     )
     subject = PreprintSubjectSerializer(
         many=True,
-        read_only=True,
     )
     files = PreprintFileSerializer(
         source="preprintfile_set",
         many=True,
-        read_only=True,
     )
     supplementary_files = PreprintSupplementaryFileSerializer(
         source="preprintsupplementaryfile_set",
         many=True,
-        read_only=True,
     )
