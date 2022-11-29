@@ -165,13 +165,23 @@ class RepositoryFieldAnswerSerializer(serializers.ModelSerializer):
 class PreprintSerializer(serializers.ModelSerializer):
     # TODO: write a create method
     # The `.create()` method does not support writable nested fields by default.
-    # Write an explicit `.create()` method for serializer `api.serializers.PreprintSerializer`, or set `read_only=True` on nested serializer fields.
+    # Write an explicit `.create()` method for serializer
+    # `api.serializers.PreprintSerializer`, or set `read_only=True` on nested
+    # serializer fields.
+
+    def create(self, validated_data):
+        preprint = repository_models.Preprint.objects.create(**validated_data)
+        return preprint 
 
     class Meta:
         model = repository_models.Preprint
-        fields = ('pk', 'title', 'abstract', 'license', 'keywords', 
+        # fields = ('pk', 'title', 'abstract', 'license', 'keywords',
+        #           'date_submitted', 'date_accepted', 'date_published',
+        #           'doi', 'preprint_doi', 'authors', 'subject', 'files',
+        #           'supplementary_files')
+        fields = ('pk', 'title', 'abstract', 'license', 'keywords',
                   'date_submitted', 'date_accepted', 'date_published',
-                  'doi', 'preprint_doi', 'authors', 'subject', 'files', 'supplementary_files')
+                  'doi', 'preprint_doi', 'authors', 'subject', 'supplementary_files')
 
     authors = PreprintAccountSerializer(
         many=True,
@@ -183,10 +193,10 @@ class PreprintSerializer(serializers.ModelSerializer):
     subject = PreprintSubjectSerializer(
         many=True,
     )
-    files = PreprintFileSerializer(
-        source="preprintfile_set",
-        many=True,
-    )
+    # files = PreprintFileSerializer(
+    #     source="preprintfile_set",
+    #     many=True,
+    # )
     supplementary_files = PreprintSupplementaryFileSerializer(
         source="preprintsupplementaryfile_set",
         many=True,

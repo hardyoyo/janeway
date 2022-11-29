@@ -100,6 +100,7 @@ class IssueViewSet(viewsets.ModelViewSet):
         return queryset
 
 
+# @permission_classes((permissions.IsAdminUser,))
 class LicenceViewSet(viewsets.ModelViewSet):
     """
     API Endpoint for journals and preprints
@@ -139,7 +140,7 @@ class ArticleViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-
+# @permission_classes((permissions.IsAdminUser,))
 class PreprintViewSet(viewsets.ModelViewSet):
     """
     API Endpoint for preprints.
@@ -153,17 +154,8 @@ class PreprintViewSet(viewsets.ModelViewSet):
         # NOTE: this might need to be a perform_create, if so, remove create,
         # there can be ONLY ONE, perform_create can make more than one object at
         # at time, which might be required for a sensible API
-    def create(self, request, *args, **kwargs):
-        user = request.user
-        pass
-        # TODO: make this work, and then remove the pass line above
-        # https://ilovedjango.com/django/rest-api-framework/views/tips/sub/modelviewset-django-rest-framework/
-        
-        # NOTES: date (fields date_submitted, date_accepted, date_published)
-        # should be handled by this create method, and not accepted via the API,
-        # or just ignored
-        
-@permission_classes((permissions.IsAdminUser,))
+
+# @permission_classes((permissions.IsAdminUser,))
 class PreprintFileViewSet(viewsets.ModelViewSet):
     """
     API Endpoint for preprint files
