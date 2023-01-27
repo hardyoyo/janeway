@@ -12,6 +12,7 @@ from django.db.models import Q
 from rest_framework import viewsets, generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import permissions
+from rest_framework import filters
 
 from api import serializers, permissions as api_permissions
 from core import models as core_models
@@ -33,6 +34,9 @@ def index(request):
 
     return HttpResponse(json_content, content_type="application/json")
 
+class DynamicSearchFilter(filters.SearchFilter):
+    def get_search_fields(self, view, request):
+        return request.GET.getlist('search_fields', [])
 
 @permission_classes((permissions.IsAdminUser,))
 class AccountViewSet(viewsets.ModelViewSet):
@@ -148,6 +152,7 @@ class PreprintViewSet(viewsets.ModelViewSet):
     """
     serializer_class = serializers.PreprintSerializer
     http_method_names = ['get']
+    filter_backends = (DynamicSearchFilter,)
 
     def get_queryset(self):
         return repository_models.Preprint.objects.filter(repository=self.request.repository,
