@@ -8,13 +8,13 @@ env_file:
 
 services:
   appserver:
-    type: python:3.6
-    command: python /app/src/manage.py runserver 0.0.0.0:8000 -v 3
+    type: python:3.8
+    command: python3 /app/src/manage.py runserver 0.0.0.0:8000 -v 3
     build_as_root:
-      - grep '^deb ' /etc/apt/sources.list | perl -pe 's/deb /deb-src /' >> /etc/apt/sources.list
-      - apt-get update -qq && apt-get install -y python3-lxml pylint libxml2-dev libxslt1-dev python3-dev zlib1g-dev lib32z1-dev libffi-dev libssl-dev libjpeg-dev && apt-get build-dep -y lxml
+      # - sed -i~orig -e 's/Typesi(.) deb/Types$1 deb-src/' /etc/apt/sources.list.d/debian.sources && cat /etc/apt/sources.list.d/debian.sources~orig >> /etc/apt/sources.list.d/debian.sources && apt-get update -qq && apt-get install -y libxml2-dev libxslt1-dev zlib1g-dev libffi-dev libssl-dev libjpeg-dev && apt-get build-dep -y lxml
+      - "sed -i -e 's/Types: deb/Types: deb-src/' /etc/apt/sources.list.d/debian.sources && apt-get update -qq && apt-get install -y libxml2-dev libxslt1-dev zlib1g-dev libffi-dev libssl-dev libjpeg-dev"
     build:
-      - cd /app && pip install --upgrade pip && pip install Cython && pip install psycopg2-binary~=2.8.0 && pip install -r requirements.txt &&  pip install -r dev-requirements.txt
+       - cd /app && pip3 install --upgrade pip && pip3 install Cython && pip3 install -r requirements.txt &&  pip3 install -r dev-requirements.txt && pip3 install psycopg2
     scanner: true
     overrides:
       ports:
@@ -33,23 +33,23 @@ services:
       database: janeway
 
 tooling:
-  python:
+  python3:
     service: appserver
-    cmd: python
+    cmd: python3
     dir: /app/src
-  pip:
+  pip3:
     service: appserver
-    description: run pip commands to manage Python package installation in this environment
-    cmd: pip
+    description: run pip3 commands to manage Python package installation in this environment
+    cmd: pip3
     dir: /app/src
   manage:
     service: appserver
-    cmd: python manage.py
+    cmd: python3 manage.py
     dir: /app/src
   restart-runserver:
     service: appserver
     description: Quickly restarts the Django runserver process, follows logs, and enables interactive debugging
-    cmd: killall python || python /app/src/manage.py runserver 0.0.0.0:8000 -v 3
+    cmd: killall python || python3 /app/src/manage.py runserver 0.0.0.0:8000 -v 3
     dir: /app/src
     user: root
   psql:
